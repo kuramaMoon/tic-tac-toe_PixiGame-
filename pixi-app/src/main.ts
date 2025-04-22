@@ -257,20 +257,20 @@ function checkDraw(): boolean {
 }
 
 function displayMessage(message: string): void {
-  // const messageText: PIXI.Text = new PIXI.Text(message, {
-  //   fontFamily: 'Orbitron',
-  //   fontSize: 60,
-  //   fill: 0x00ffcc, // Neon cyan for message
-  //   fontWeight: '700',
-  //   align: 'center'
-  // });
-  // messageText.filters = [new GlowFilter({ color: 0x00ffcc, outerStrength: 3, distance: 15, quality: 0.1 })];
-  // messageText.name = 'message';
-  // messageText.anchor.set(0.5);
-  // messageText.x = app.screen.width / 2;
-  // messageText.y = app.screen.height / 2;
-  // app.stage.addChild(messageText);
+  const messageText: PIXI.Text = new PIXI.Text(message, {
+    fontFamily: 'Orbitron',
+    fontSize: 60,
+    fill: 0x00ffcc, // Neon cyan for message
+    fontWeight: '700',
+    align: 'center'
+  });
+  messageText.filters = [new GlowFilter({ color: 0x00ffcc, outerStrength: 3, distance: 15, quality: 0.1 })];
+  messageText.name = 'message';
+  messageText.anchor.set(0.5);
+  messageText.x = app.screen.width / 2;
+  messageText.y = app.screen.height / 2;
+  //app.stage.addChild(messageText);
 
-  // // Animate glow for the message
-  // animateGlow(messageText, messageText.filters[0] as GlowFilter);
+  // Animate glow for the message
+  //animateGlow(messageText, messageText.filters[0] as GlowFilter);
 }
