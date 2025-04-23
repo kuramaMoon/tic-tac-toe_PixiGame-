@@ -8,10 +8,32 @@ type Cell = Player | '';
 type Board = Cell[][];
 type SymbolData = { text: PIXI.Text; row: number; col: number };
 
-// Initialize PixiJS application
+// Determine canvas size based on screen dimensions
+const maxCanvasSize = 600; // Maximum size for larger screens
+const minCanvasSize = 250; // Minimum size for smaller screens (smartphones)
+const padding = 10; // Padding to ensure the canvas fits well on screen
+
+const calculateCanvasSize = (): number => {
+  const windowWidth = window.innerWidth - padding;
+  const windowHeight = window.innerHeight - padding;
+  console.log(`windowWidth: ${windowWidth}`);
+  // Ensure the canvas size is constrained by the viewport width
+  const maxSizeByWidth = Math.min(windowWidth, windowHeight); // Use the smaller dimension
+  const size = Math.max(minCanvasSize, Math.min(maxCanvasSize, maxSizeByWidth));
+  console.log(`size: ${size}`);
+
+  console.log(`Calculated CANVAS_SIZE: ${size}, windowWidth: ${windowWidth}, windowHeight: ${windowHeight}`);
+  return size;
+};
+
+let CANVAS_SIZE = calculateCanvasSize();
+console.log(`CANVAS_SIZE: ${CANVAS_SIZE}`);
+
+
+// Initialize PixiJS application with dynamic size
 const app: PIXI.Application = new PIXI.Application({
-  width: 600,
-  height: 600,
+  width: CANVAS_SIZE,
+  height: CANVAS_SIZE,
   backgroundColor: 0x1a1a1a, // Dark background for cyberpunk aesthetic
   antialias: true,
 });
@@ -19,6 +41,7 @@ const app: PIXI.Application = new PIXI.Application({
 // Get the snakeContainer element and append the canvas to it
 const snakeContainer: HTMLDivElement | null = document.getElementById('snakeContainer') as HTMLDivElement;
 if (snakeContainer) {
+  snakeContainer.innerHTML = ''; // Clear any existing canvases
   snakeContainer.appendChild(app.view as HTMLCanvasElement);
 } else {
   console.error("snakeContainer element not found in the DOM.");
@@ -31,6 +54,7 @@ if (!turnIndicator) {
 }
 
 // Game state
+const GRID_SIZE = 3; // Ensure 3x3 grid
 let board: Board = [
   ['', '', ''],
   ['', '', ''],
@@ -42,26 +66,33 @@ let xSymbols: SymbolData[] = [];
 let oSymbols: SymbolData[] = [];
 
 // Grid setup
-const gridSize: number = 3;
-const cellSize: number = app.screen.width / gridSize;
+let cellSize: number = CANVAS_SIZE / GRID_SIZE;
 const graphics: PIXI.Graphics = new PIXI.Graphics();
 app.stage.addChild(graphics);
 
-// Draw grid lines with a neon effect
-graphics.lineStyle(6, 0x00ffcc, 0.8); // Neon cyan lines
-for (let i = 1; i < gridSize; i++) {
-  graphics.moveTo(i * cellSize, 0);
-  graphics.lineTo(i * cellSize, app.screen.height);
-  graphics.moveTo(0, i * cellSize);
-  graphics.lineTo(app.screen.width, i * cellSize);
-}
+// Function to draw the grid with dynamic size
+const drawGrid = () => {
+  graphics.clear();
+  graphics.lineStyle(6, 0x00ffcc, 0.8); // Neon cyan lines
+  for (let i = 1; i < GRID_SIZE; i++) {
+    graphics.moveTo(i * cellSize, 0);
+    graphics.lineTo(i * cellSize, CANVAS_SIZE);
+    graphics.moveTo(0, i * cellSize);
+    graphics.lineTo(CANVAS_SIZE, i * cellSize);
+  }
+  console.log(`Drew grid: ${GRID_SIZE}x${GRID_SIZE}, cellSize=${cellSize}, CANVAS_SIZE=${CANVAS_SIZE}`);
+};
 
-// Text style for X and O with cyberpunk font
+// Initial grid draw
+drawGrid();
+
+// Text style for X and O with dynamic font size
+const calculateFontSize = () => CANVAS_SIZE * 0.2; // 20% of canvas size
 const textStyle: PIXI.TextStyle = new PIXI.TextStyle({
   fontFamily: 'Orbitron',
-  fontSize: 120,
+  fontSize: calculateFontSize(),
   fontWeight: '700',
-  align: 'center'
+  align: 'center',
 });
 
 // Glow filters for X and O
@@ -70,7 +101,7 @@ const xGlowFilter: GlowFilter = new GlowFilter({
   outerStrength: 3,
   innerStrength: 0,
   distance: 15,
-  quality: 0.1
+  quality: 0.1,
 });
 
 const oGlowFilter: GlowFilter = new GlowFilter({
@@ -78,16 +109,20 @@ const oGlowFilter: GlowFilter = new GlowFilter({
   outerStrength: 3,
   innerStrength: 0,
   distance: 15,
-  quality: 0.1
+  quality: 0.1,
 });
 
 // Create an interactive hit area for the entire canvas
 const hitArea: PIXI.Graphics = new PIXI.Graphics();
-hitArea.beginFill(0x000000, 0.001);
-hitArea.drawRect(0, 0, app.screen.width, app.screen.height);
-hitArea.endFill();
-hitArea.interactive = true;
-//hitArea.buttonMode = true;
+const updateHitArea = () => {
+  hitArea.clear();
+  hitArea.beginFill(0x000000, 0.001);
+  hitArea.drawRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  hitArea.endFill();
+  hitArea.interactive = true;
+  console.log(`Updated hit area: ${CANVAS_SIZE}x${CANVAS_SIZE}`);
+};
+updateHitArea();
 app.stage.addChild(hitArea);
 
 // Handle clicks using PixiJS's event system
@@ -100,12 +135,15 @@ hitArea.on('pointertap', (event): void => {
   const col: number = Math.floor(x / cellSize);
   const row: number = Math.floor(y / cellSize);
 
-  if (row >= 0 && row < 3 && col >= 0 && col < 3 && board[row][col] === '') {
+  console.log(`Click at x=${x}, y=${y}, row=${row}, col=${col}, cellSize=${cellSize}`);
+
+  if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && board[row][col] === '') {
     board[row][col] = currentPlayer;
 
     const text: PIXI.Text = new PIXI.Text(currentPlayer, {
       ...textStyle,
-      fill: currentPlayer === 'X' ? '#ff00ff' : '#00f0ff' // Neon magenta for X, electric blue for O
+      fill: currentPlayer === 'X' ? '#ff00ff' : '#00f0ff', // Neon magenta for X, electric blue for O
+      fontSize: calculateFontSize(),
     });
     text.anchor.set(0.5);
     text.x = col * cellSize + cellSize / 2;
@@ -156,6 +194,8 @@ hitArea.on('pointertap', (event): void => {
       currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
       if (turnIndicator) turnIndicator.textContent = `Player ${currentPlayer}'s Turn`;
     }
+  } else {
+    console.log(`Invalid click: row=${row}, col=${col}, board[row][col]=${board[row] ? board[row][col] : 'undefined'}`);
   }
 });
 
@@ -241,12 +281,15 @@ function resetGame(): void {
 }
 
 function checkWin(player: Player): boolean {
-  for (let i = 0; i < 3; i++) {
+  // Check rows
+  for (let i = 0; i < GRID_SIZE; i++) {
     if (board[i][0] === player && board[i][1] === player && board[i][2] === player) return true;
   }
-  for (let i = 0; i < 3; i++) {
+  // Check columns
+  for (let i = 0; i < GRID_SIZE; i++) {
     if (board[0][i] === player && board[1][i] === player && board[2][i] === player) return true;
   }
+  // Check diagonals
   if (board[0][0] === player && board[1][1] === player && board[2][2] === player) return true;
   if (board[0][2] === player && board[1][1] === player && board[2][0] === player) return true;
   return false;
@@ -259,18 +302,55 @@ function checkDraw(): boolean {
 function displayMessage(message: string): void {
   const messageText: PIXI.Text = new PIXI.Text(message, {
     fontFamily: 'Orbitron',
-    fontSize: 60,
+    fontSize: CANVAS_SIZE * 0.1, // 10% of canvas size
     fill: 0x00ffcc, // Neon cyan for message
     fontWeight: '700',
-    align: 'center'
+    align: 'center',
   });
   messageText.filters = [new GlowFilter({ color: 0x00ffcc, outerStrength: 3, distance: 15, quality: 0.1 })];
   messageText.name = 'message';
   messageText.anchor.set(0.5);
-  messageText.x = app.screen.width / 2;
-  messageText.y = app.screen.height / 2;
- // app.stage.addChild(messageText);
+  messageText.x = CANVAS_SIZE / 2;
+  messageText.y = CANVAS_SIZE / 2;
+  app.stage.addChild(messageText);
 
   // Animate glow for the message
-  //animateGlow(messageText, messageText.filters[0] as GlowFilter);
+  animateGlow(messageText, messageText.filters[0] as GlowFilter);
 }
+
+// Handle window resize to make the canvas responsive
+const resizeCanvas = () => {
+  CANVAS_SIZE = calculateCanvasSize();
+  cellSize = CANVAS_SIZE / GRID_SIZE;
+
+  // Resize the PixiJS application
+  app.renderer.resize(CANVAS_SIZE, CANVAS_SIZE);
+
+  // Redraw the grid
+  drawGrid();
+
+  // Update hit area
+  updateHitArea();
+
+  // Update existing symbols' positions and sizes
+  const newFontSize = calculateFontSize();
+  [...xSymbols, ...oSymbols].forEach(({ text, row, col }) => {
+    text.style.fontSize = newFontSize;
+    text.x = col * cellSize + cellSize / 2;
+    text.y = row * cellSize + cellSize / 2;
+  });
+
+  // Update message text if it exists
+  const message: PIXI.DisplayObject | null = app.stage.getChildByName('message');
+  if (message) {
+    (message as PIXI.Text).style.fontSize = CANVAS_SIZE * 0.1;
+    message.x = CANVAS_SIZE / 2;
+    message.y = CANVAS_SIZE / 2;
+  }
+};
+
+// Add resize event listener
+window.addEventListener('resize', resizeCanvas);
+
+// Initial resize to ensure correct sizing on load
+resizeCanvas();
