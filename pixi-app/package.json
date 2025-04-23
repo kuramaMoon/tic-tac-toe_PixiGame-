@@ -1,0 +1,23 @@
+{
+  "name": "pixi-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "deploy": "gh-pages -d dist",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.3.1"
+  },
+  "dependencies": {
+    "@pixi/extract": "^7.4.3",
+    "@pixi/filter-drop-shadow": "^5.2.0",
+    "@pixi/filter-glow": "^5.2.1",
+    "pixi.js": "^7.4.3"
+  }
+}
