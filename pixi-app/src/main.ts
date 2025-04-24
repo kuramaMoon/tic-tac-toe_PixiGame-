@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { GlowFilter } from '@pixi/filter-glow';
+import PubNub from 'pubnub';
 import './style.css';
 
 // Type definitions
@@ -8,16 +9,46 @@ type Cell = Player | '';
 type Board = Cell[][];
 type SymbolData = { text: PIXI.Text; row: number; col: number };
 
+// Define the structure of PubNub message payloads
+interface MessagePayload {
+  type: 'playerJoined' | 'move' | 'gameOver' | 'reset';
+  row?: number;
+  col?: number;
+  player?: Player;
+  messageText?: string;
+}
+
+// PubNub setup
+const pubnub = new PubNub({
+  publishKey: 'your-publish-key', // Replace with your PubNub Publish Key
+  subscribeKey: 'your-subscribe-key', // Replace with your PubNub Subscribe Key
+  userId: `player-${Math.random().toString(36).substring(2, 9)}`,
+});
+
+// Game session variables
+let roomId: string | null = null;
+let isCreator: boolean = false;
+let myPlayer: Player | null = null;
+let opponentJoined: boolean = false;
+
+// DOM elements for lobby
+const lobbyDiv = document.getElementById('lobby') as HTMLDivElement;
+const gameDiv = document.getElementById('game') as HTMLDivElement;
+const createGameButton = document.getElementById('createGameButton') as HTMLButtonElement;
+const gameLinkDiv = document.getElementById('gameLink') as HTMLDivElement;
+const linkText = document.getElementById('linkText') as HTMLSpanElement;
+const copyLinkButton = document.getElementById('copyLinkButton') as HTMLButtonElement;
+const waitingMessage = document.getElementById('waitingMessage') as HTMLDivElement;
+
 // Determine canvas size based on screen dimensions
-const maxCanvasSize = 600; // Maximum size for larger screens
-const minCanvasSize = 250; // Reduced for smaller screens (smartphones)
-const padding = 50; // Reduced padding to fit better on small screens
+const maxCanvasSize = 600;
+const minCanvasSize = 250;
+const padding = 10;
 
 const calculateCanvasSize = (): number => {
   const windowWidth = window.innerWidth - padding;
   const windowHeight = window.innerHeight - padding;
-  // Ensure the canvas size is constrained by the viewport width
-  const maxSizeByWidth = Math.min(windowWidth, windowHeight); // Use the smaller dimension
+  const maxSizeByWidth = Math.min(windowWidth, windowHeight);
   const size = Math.max(minCanvasSize, Math.min(maxCanvasSize, maxSizeByWidth));
   console.log(`Main Canvas CANVAS_SIZE: ${size}, windowWidth: ${windowWidth}, windowHeight: ${windowHeight}`);
   return size;
@@ -29,19 +60,18 @@ let CANVAS_SIZE = calculateCanvasSize();
 const app: PIXI.Application = new PIXI.Application({
   width: CANVAS_SIZE,
   height: CANVAS_SIZE,
-  backgroundColor: 0x1a1a1a, // Dark background for cyberpunk aesthetic
+  backgroundColor: 0x1a1a1a,
   antialias: true,
 });
 
 // Get the snakeContainer element and append the canvas to it
 const snakeContainer: HTMLDivElement | null = document.getElementById('snakeContainer') as HTMLDivElement;
 if (snakeContainer) {
-  // Instead of clearing all content, append the canvas without affecting #snakeOverlay
   const existingMainCanvas = snakeContainer.querySelector('canvas');
   if (existingMainCanvas) {
-    existingMainCanvas.remove(); // Remove only the previous main canvas if it exists
+    existingMainCanvas.remove();
   }
-  snakeContainer.insertBefore(app.view as HTMLCanvasElement, snakeContainer.firstChild); // Insert before #snakeOverlay
+  snakeContainer.insertBefore(app.view as HTMLCanvasElement, snakeContainer.firstChild);
   console.log("Main canvas appended to snakeContainer:", app.view);
 } else {
   console.error("snakeContainer element not found in the DOM.");
@@ -54,7 +84,7 @@ if (!turnIndicator) {
 }
 
 // Game state
-const GRID_SIZE = 3; // Ensure 3x3 grid
+const GRID_SIZE = 3;
 let board: Board = [
   ['', '', ''],
   ['', '', ''],
@@ -73,7 +103,7 @@ app.stage.addChild(graphics);
 // Function to draw the grid with dynamic size
 const drawGrid = () => {
   graphics.clear();
-  graphics.lineStyle(6, 0x00ffcc, 0.8); // Neon cyan lines
+  graphics.lineStyle(6, 0x00ffcc, 0.8);
   for (let i = 1; i < GRID_SIZE; i++) {
     graphics.moveTo(i * cellSize, 0);
     graphics.lineTo(i * cellSize, CANVAS_SIZE);
@@ -81,13 +111,11 @@ const drawGrid = () => {
     graphics.lineTo(CANVAS_SIZE, i * cellSize);
   }
   console.log(`Drew grid: ${GRID_SIZE}x${GRID_SIZE}, cellSize=${cellSize}, CANVAS_SIZE=${CANVAS_SIZE}`);
+  app.renderer.render(app.stage); // Force render to ensure the grid is drawn
 };
 
-// Initial grid draw
-drawGrid();
-
 // Text style for X and O with dynamic font size
-const calculateFontSize = () => CANVAS_SIZE * 0.2; // 20% of canvas size
+const calculateFontSize = () => CANVAS_SIZE * 0.2;
 const textStyle: PIXI.TextStyle = new PIXI.TextStyle({
   fontFamily: 'Orbitron',
   fontSize: calculateFontSize(),
@@ -97,7 +125,7 @@ const textStyle: PIXI.TextStyle = new PIXI.TextStyle({
 
 // Glow filters for X and O
 const xGlowFilter: GlowFilter = new GlowFilter({
-  color: 0xff00ff, // Neon magenta for X
+  color: 0xff00ff,
   outerStrength: 3,
   innerStrength: 0,
   distance: 15,
@@ -105,7 +133,7 @@ const xGlowFilter: GlowFilter = new GlowFilter({
 });
 
 const oGlowFilter: GlowFilter = new GlowFilter({
-  color: 0x00f0ff, // Electric blue for O
+  color: 0x00f0ff,
   outerStrength: 3,
   innerStrength: 0,
   distance: 15,
@@ -125,9 +153,110 @@ const updateHitArea = () => {
 updateHitArea();
 app.stage.addChild(hitArea);
 
+// Lobby logic
+createGameButton.addEventListener('click', () => {
+  roomId = Math.random().toString(36).substring(2, 9);
+  isCreator = true;
+  myPlayer = 'X';
+
+  pubnub.subscribe({ channels: [roomId] });
+
+  const gameUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+  linkText.textContent = gameUrl;
+  gameLinkDiv.style.display = 'block';
+  waitingMessage.style.display = 'block';
+  createGameButton.style.display = 'none';
+
+  // Draw the grid immediately, but keep gameDiv hidden
+  drawGrid();
+  console.log("Creator: Grid drawn, waiting for opponent to join");
+
+  copyLinkButton.addEventListener('click', () => {
+    navigator.clipboard.writeText(gameUrl).then(() => {
+      alert('Link copied to clipboard!');
+    });
+  });
+});
+
+// Check if joining via URL
+const urlParams = new URLSearchParams(window.location.search);
+const joinRoomId = urlParams.get('room');
+if (joinRoomId) {
+  roomId = joinRoomId;
+  isCreator = false;
+  myPlayer = 'O';
+
+  pubnub.subscribe({ channels: [roomId] });
+
+  pubnub.publish({
+    channel: roomId,
+    message: { type: 'playerJoined' },
+  });
+
+  lobbyDiv.style.display = 'none';
+  gameDiv.style.display = 'flex';
+  drawGrid();
+  console.log("Joiner: Grid drawn and game started");
+}
+
+// PubNub message listener
+pubnub.addListener({
+  message: (msg) => {
+    const payload = msg.message as unknown;
+
+    if (typeof payload !== 'object' || payload === null || !('type' in payload)) {
+      console.error('Invalid message payload: Expected an object with a "type" property', payload);
+      return;
+    }
+
+    const messagePayload = payload as MessagePayload;
+    console.log("Received PubNub message:", messagePayload);
+
+    switch (messagePayload.type) {
+      case 'playerJoined':
+        if (isCreator) {
+          opponentJoined = true;
+          lobbyDiv.style.display = 'none';
+          gameDiv.style.display = 'flex';
+          drawGrid(); // Redraw to ensure the grid is visible
+          console.log("Creator: Opponent joined, game started");
+        }
+        break;
+      case 'move':
+        if (
+          typeof messagePayload.row !== 'number' ||
+          typeof messagePayload.col !== 'number' ||
+          !messagePayload.player ||
+          (messagePayload.player !== 'X' && messagePayload.player !== 'O')
+        ) {
+          console.error('Invalid move payload: Missing or invalid row, col, or player', messagePayload);
+          return;
+        }
+        handleMove(messagePayload.row, messagePayload.col, messagePayload.player);
+        currentPlayer = myPlayer as Player;
+        if (turnIndicator) turnIndicator.textContent = `Player ${currentPlayer}'s Turn`;
+        break;
+      case 'gameOver':
+        if (!messagePayload.messageText || typeof messagePayload.messageText !== 'string') {
+          console.error('Invalid gameOver payload: Missing or invalid messageText', messagePayload);
+          return;
+        }
+        gameOver = true;
+        displayMessage(messagePayload.messageText);
+        if (turnIndicator) turnIndicator.textContent = messagePayload.messageText;
+        break;
+      case 'reset':
+        resetGameLocally();
+        break;
+      default:
+        console.warn('Unknown message type:', messagePayload.type);
+    }
+  },
+});
+
 // Handle clicks using PixiJS's event system
 hitArea.on('pointertap', (event): void => {
-  if (gameOver) return;
+  if (gameOver || !myPlayer || currentPlayer !== myPlayer || !opponentJoined) return;
 
   const localPos: PIXI.Point = event.data.getLocalPosition(app.stage);
   const x: number = localPos.x;
@@ -138,129 +267,90 @@ hitArea.on('pointertap', (event): void => {
   console.log(`Click at x=${x}, y=${y}, row=${row}, col=${col}, cellSize=${cellSize}`);
 
   if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && board[row][col] === '') {
-    board[row][col] = currentPlayer;
-
-    const text: PIXI.Text = new PIXI.Text(currentPlayer, {
-      ...textStyle,
-      fill: currentPlayer === 'X' ? '#ff00ff' : '#00f0ff', // Neon magenta for X, electric blue for O
-      fontSize: calculateFontSize(),
+    pubnub.publish({
+      channel: roomId!,
+      message: { type: 'move', row, col, player: myPlayer },
     });
-    text.anchor.set(0.5);
-    text.x = col * cellSize + cellSize / 2;
-    text.y = row * cellSize + cellSize / 2;
 
-    // Apply glow filter
-    text.filters = [currentPlayer === 'X' ? xGlowFilter : oGlowFilter];
+    handleMove(row, col, myPlayer);
 
-    // Start with scale 0 for animation
-    text.scale.set(0);
-    app.stage.addChild(text);
-
-    // Animate scale and glow
-    animatePlacement(text);
-    animateGlow(text, currentPlayer === 'X' ? xGlowFilter : oGlowFilter);
-
-    // Track symbols with position for the current player
-    const symbolArray: SymbolData[] = currentPlayer === 'X' ? xSymbols : oSymbols;
-    symbolArray.push({ text, row, col });
-
-    // Fade and disappear logic
-    if (symbolArray.length >= 3) {
-      // If there are 4 or more symbols, remove the earliest
-      if (symbolArray.length >= 4) {
-        const symbolToRemove: SymbolData = symbolArray.shift()!;
-        app.stage.removeChild(symbolToRemove.text);
-        // Clear the corresponding cell on the board
-        board[symbolToRemove.row][symbolToRemove.col] = '';
-      }
-
-      // Fade the earliest unfaded symbol
-      const earliestUnfaded: SymbolData | undefined = symbolArray.find(symbol => symbol.text.alpha === 1);
-      if (earliestUnfaded) {
-        console.log(`Fading symbol at row ${earliestUnfaded.row}, col ${earliestUnfaded.col}, alpha: ${earliestUnfaded.text.alpha}`);
-        fadeSymbol(earliestUnfaded.text);
-      }
-    }
-
-    if (checkWin(currentPlayer)) {
-      displayMessage(`${currentPlayer} Wins!`);
-      gameOver = true;
-      if (turnIndicator) turnIndicator.textContent = `${currentPlayer} Wins!`;
-    } else if (checkDraw()) {
-      displayMessage("It's a Draw!");
-      gameOver = true;
-      if (turnIndicator) turnIndicator.textContent = "Draw!";
-    } else {
-      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-      if (turnIndicator) turnIndicator.textContent = `Player ${currentPlayer}'s Turn`;
-    }
-  } else {
-    console.log(`Invalid click: row=${row}, col=${col}, board[row][col]=${board[row] ? board[row][col] : 'undefined'}`);
+    currentPlayer = myPlayer === 'X' ? 'O' : 'X';
+    if (turnIndicator) turnIndicator.textContent = `Player ${currentPlayer}'s Turn`;
   }
 });
+
+// Handle a move (local or from opponent)
+function handleMove(row: number, col: number, player: Player): void {
+  board[row][col] = player;
+
+  const text: PIXI.Text = new PIXI.Text(player, {
+    ...textStyle,
+    fill: player === 'X' ? '#ff00ff' : '#00f0ff',
+    fontSize: calculateFontSize(),
+  });
+  text.anchor.set(0.5);
+  text.x = col * cellSize + cellSize / 2;
+  text.y = row * cellSize + cellSize / 2;
+
+  text.filters = [player === 'X' ? xGlowFilter : oGlowFilter];
+  text.scale.set(0);
+  app.stage.addChild(text);
+
+  animatePlacement(text);
+  animateGlow(text, player === 'X' ? xGlowFilter : oGlowFilter);
+
+  const symbolArray: SymbolData[] = player === 'X' ? xSymbols : oSymbols;
+  symbolArray.push({ text, row, col });
+
+  if (symbolArray.length >= 3) {
+    if (symbolArray.length >= 4) {
+      const symbolToRemove: SymbolData = symbolArray.shift()!;
+      app.stage.removeChild(symbolToRemove.text);
+      board[symbolToRemove.row][symbolToRemove.col] = '';
+    }
+
+    const earliestUnfaded: SymbolData | undefined = symbolArray.find(symbol => symbol.text.alpha === 1);
+    if (earliestUnfaded) {
+      console.log(`Fading symbol at row ${earliestUnfaded.row}, col ${earliestUnfaded.col}, alpha: ${earliestUnfaded.text.alpha}`);
+      fadeSymbol(earliestUnfaded.text);
+    }
+  }
+
+  if (checkWin(player)) {
+    pubnub.publish({
+      channel: roomId!,
+      message: { type: 'gameOver', messageText: `${player} Wins!` },
+    });
+    gameOver = true;
+    displayMessage(`${player} Wins!`);
+    if (turnIndicator) turnIndicator.textContent = `${player} Wins!`;
+  } else if (checkDraw()) {
+    pubnub.publish({
+      channel: roomId!,
+      message: { type: 'gameOver', messageText: "It's a Draw!" },
+    });
+    gameOver = true;
+    displayMessage("It's a Draw!");
+    if (turnIndicator) turnIndicator.textContent = "Draw!";
+  }
+}
 
 // Reset button
 const resetButton: HTMLButtonElement | null = document.getElementById('resetButton') as HTMLButtonElement;
 if (resetButton) {
-  resetButton.addEventListener('click', resetGame);
+  resetButton.addEventListener('click', () => {
+    pubnub.publish({
+      channel: roomId!,
+      message: { type: 'reset' },
+    });
+    resetGameLocally();
+  });
 } else {
   console.error("Reset button not found in the DOM.");
 }
 
-// Animate symbol placement (scale from 0 to 1)
-function animatePlacement(symbol: PIXI.Text): void {
-  const animationDuration: number = 200;
-  let elapsed: number = 0;
-
-  app.ticker.add((delta: number): void => {
-    elapsed += delta * (1000 / 60);
-    const progress: number = Math.min(elapsed / animationDuration, 1);
-    symbol.scale.set(progress);
-
-    if (progress >= 1) {
-      app.ticker.remove(animatePlacement as () => void);
-    }
-  });
-}
-
-// Animate glow effect (pulsing)
-function animateGlow(symbol: PIXI.Text | PIXI.Graphics, glowFilter: GlowFilter): void {
-  let time: number = 0;
-  const pulseSpeed: number = 0.05; // Speed of the pulsing effect
-  const minStrength: number = 2;
-  const maxStrength: number = 4;
-
-  app.ticker.add((delta: number): void => {
-    time += delta * pulseSpeed;
-    glowFilter.outerStrength = minStrength + Math.sin(time) * (maxStrength - minStrength) / 2;
-
-    // Stop animation if symbol is removed
-    if (!symbol.parent) {
-      app.ticker.remove(animateGlow as () => void);
-    }
-  });
-}
-
-// Fade animation for a symbol to half opacity
-function fadeSymbol(symbol: PIXI.Text): void {
-  const fadeDuration: number = 1000;
-  const startAlpha: number = symbol.alpha;
-  const targetAlpha: number = 0.1;
-  let elapsed: number = 0;
-
-  app.ticker.add((delta: number): void => {
-    elapsed += delta * (1000 / 60);
-    const progress: number = elapsed / fadeDuration;
-    symbol.alpha = startAlpha - (startAlpha - targetAlpha) * progress;
-
-    if (progress >= 1) {
-      symbol.alpha = targetAlpha;
-      app.ticker.remove(fadeSymbol as () => void);
-    }
-  });
-}
-
-function resetGame(): void {
+// Reset game locally
+function resetGameLocally(): void {
   board = [
     ['', '', ''],
     ['', '', ''],
@@ -281,18 +371,65 @@ function resetGame(): void {
   if (messageBackground) app.stage.removeChild(messageBackground);
 
   if (turnIndicator) turnIndicator.textContent = "Player X's Turn";
+  drawGrid(); // Redraw the grid on reset
+}
+
+function animatePlacement(symbol: PIXI.Text): void {
+  const animationDuration: number = 200;
+  let elapsed: number = 0;
+
+  app.ticker.add((delta: number): void => {
+    elapsed += delta * (1000 / 60);
+    const progress: number = Math.min(elapsed / animationDuration, 1);
+    symbol.scale.set(progress);
+
+    if (progress >= 1) {
+      app.ticker.remove(animatePlacement as () => void);
+    }
+  });
+}
+
+function animateGlow(symbol: PIXI.Text | PIXI.Graphics, glowFilter: GlowFilter): void {
+  let time: number = 0;
+  const pulseSpeed: number = 0.05;
+  const minStrength: number = 2;
+  const maxStrength: number = 4;
+
+  app.ticker.add((delta: number): void => {
+    time += delta * pulseSpeed;
+    glowFilter.outerStrength = minStrength + Math.sin(time) * (maxStrength - minStrength) / 2;
+
+    if (!symbol.parent) {
+      app.ticker.remove(animateGlow as () => void);
+    }
+  });
+}
+
+function fadeSymbol(symbol: PIXI.Text): void {
+  const fadeDuration: number = 1000;
+  const startAlpha: number = symbol.alpha;
+  const targetAlpha: number = 0.1;
+  let elapsed: number = 0;
+
+  app.ticker.add((delta: number): void => {
+    elapsed += delta * (1000 / 60);
+    const progress: number = elapsed / fadeDuration;
+    symbol.alpha = startAlpha - (startAlpha - targetAlpha) * progress;
+
+    if (progress >= 1) {
+      symbol.alpha = targetAlpha;
+      app.ticker.remove(fadeSymbol as () => void);
+    }
+  });
 }
 
 function checkWin(player: Player): boolean {
-  // Check rows
   for (let i = 0; i < GRID_SIZE; i++) {
     if (board[i][0] === player && board[i][1] === player && board[i][2] === player) return true;
   }
-  // Check columns
   for (let i = 0; i < GRID_SIZE; i++) {
     if (board[0][i] === player && board[1][i] === player && board[2][i] === player) return true;
   }
-  // Check diagonals
   if (board[0][0] === player && board[1][1] === player && board[2][2] === player) return true;
   if (board[0][2] === player && board[1][1] === player && board[2][0] === player) return true;
   return false;
@@ -303,11 +440,10 @@ function checkDraw(): boolean {
 }
 
 function displayMessage(message: string): void {
-  // Create the message text
   const messageText: PIXI.Text = new PIXI.Text(message, {
     fontFamily: 'Orbitron',
-    fontSize: CANVAS_SIZE * 0.1, // 10% of canvas size
-    fill: 0xfafafa, // Light gray for message
+    fontSize: CANVAS_SIZE * 0.1,
+    fill: 0xfafafa,
     fontWeight: '700',
     align: 'center',
   });
@@ -316,24 +452,21 @@ function displayMessage(message: string): void {
   messageText.x = CANVAS_SIZE / 2;
   messageText.y = CANVAS_SIZE / 2;
 
-  // Create a glow filter for the message text
   const messageGlowFilter: GlowFilter = new GlowFilter({
-    color: 0xff9500, // Orange glow to match the border
+    color: 0xff9500,
     outerStrength: 3,
     distance: 15,
     quality: 0.1,
   });
   messageText.filters = [messageGlowFilter];
 
-  // Create a black rectangle with an orange border as the background
   const messageBackground: PIXI.Graphics = new PIXI.Graphics();
   messageBackground.name = 'messageBackground';
-  messageBackground.lineStyle(4, 0xff9500, 1); // Orange border, 4px thick
-  messageBackground.beginFill(0x000000); // Black background
-  // Calculate the rectangle size based on the text dimensions with padding
+  messageBackground.lineStyle(4, 0xff9500, 1);
+  messageBackground.beginFill(0x000000);
   const textWidth = messageText.width;
   const textHeight = messageText.height;
-  const padding = 20; // Padding around the text
+  const padding = 20;
   const rectWidth = textWidth + padding * 2;
   const rectHeight = textHeight + padding * 2;
   messageBackground.drawRect(-rectWidth / 2, -rectHeight / 2, rectWidth, rectHeight);
@@ -341,39 +474,29 @@ function displayMessage(message: string): void {
   messageBackground.x = CANVAS_SIZE / 2;
   messageBackground.y = CANVAS_SIZE / 2;
 
-  // Create a glow filter for the rectangle's border
   const backgroundGlowFilter: GlowFilter = new GlowFilter({
-    color: 0xff9500, // Orange glow to match the border
+    color: 0xff9500,
     outerStrength: 3,
     distance: 15,
     quality: 0.1,
   });
   messageBackground.filters = [backgroundGlowFilter];
 
-  // Add the background first, then the text on top
   app.stage.addChild(messageBackground);
   app.stage.addChild(messageText);
 
-  // Animate glow for both the message and the background
   animateGlow(messageText, messageGlowFilter);
   animateGlow(messageBackground, backgroundGlowFilter);
 }
 
-// Handle window resize to make the canvas responsive
 const resizeCanvas = () => {
   CANVAS_SIZE = calculateCanvasSize();
   cellSize = CANVAS_SIZE / GRID_SIZE;
 
-  // Resize the PixiJS application
   app.renderer.resize(CANVAS_SIZE, CANVAS_SIZE);
-
-  // Redraw the grid
   drawGrid();
-
-  // Update hit area
   updateHitArea();
 
-  // Update existing symbols' positions and sizes
   const newFontSize = calculateFontSize();
   [...xSymbols, ...oSymbols].forEach(({ text, row, col }) => {
     text.style.fontSize = newFontSize;
@@ -381,17 +504,18 @@ const resizeCanvas = () => {
     text.y = row * cellSize + cellSize / 2;
   });
 
-  // Update message text if it exists
   const message: PIXI.DisplayObject | null = app.stage.getChildByName('message');
+  const messageBackground: PIXI.DisplayObject | null = app.stage.getChildByName('messageBackground');
   if (message) {
     (message as PIXI.Text).style.fontSize = CANVAS_SIZE * 0.1;
     message.x = CANVAS_SIZE / 2;
     message.y = CANVAS_SIZE / 2;
   }
+  if (messageBackground) {
+    messageBackground.x = CANVAS_SIZE / 2;
+    messageBackground.y = CANVAS_SIZE / 2;
+  }
 };
 
-// Add resize event listener
 window.addEventListener('resize', resizeCanvas);
-
-// Initial resize to ensure correct sizing on load
 resizeCanvas();

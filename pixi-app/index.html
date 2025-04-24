@@ -4,14 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tic-Tac-Toe with PixiJS</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap">
+  <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-  <div id="turnIndicator">Player X's Turn</div>
-  <div id="snakeContainer">
-    <div id="snakeOverlay"></div>
+  <!-- Lobby UI -->
+  <div id="lobby" style="display: flex; flex-direction: column; align-items: center;">
+    <h1 style="color: #00ffcc; font-family: 'Orbitron', sans-serif;">Tic-Tac-Toe Multiplayer</h1>
+    <button id="createGameButton" style="margin: 10px; padding: 10px 20px; font-size: 18px; font-family: 'Orbitron', sans-serif; background-color: #ff00ff; color: #ffffff; border: 2px solid #ff00ff; border-radius: 5px; cursor: pointer;">
+      Create Game
+    </button>
+    <div id="gameLink" style="display: none; color: #00ffcc; font-family: 'Orbitron', sans-serif; margin: 10px;">
+      Share this link: <span id="linkText"></span>
+      <button id="copyLinkButton" style="margin-left: 10px; padding: 5px 10px; font-size: 14px; background-color: #00ffcc; color: #0a0a0a; border: none; border-radius: 5px; cursor: pointer;">
+        Copy Link
+      </button>
+    </div>
+    <div id="waitingMessage" style="display: none; color: #00ffcc; font-family: 'Orbitron', sans-serif; margin: 10px;">
+      Waiting for opponent to join...
+    </div>
   </div>
-  <button id="resetButton">Reset Game</button>
+
+  <!-- Game UI -->
+  <div id="game" style="display: none;">
+    <div id="turnIndicator">Player X's Turn</div>
+    <div id="snakeContainer">
+      <div id="snakeOverlay"></div>
+    </div>
+    <button id="resetButton">Reset Game</button>
+  </div>
+
   <script type="module" src="/src/main.ts"></script>
-  <script type="module" src="src/snakeOverlay.ts"></script>
+  <script type="module" src="/src/snakeOverlay.ts"></script>
 </body>
 </html>
