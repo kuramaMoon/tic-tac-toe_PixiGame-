@@ -224,7 +224,7 @@ function animatePlacement(symbol: PIXI.Text): void {
 }
 
 // Animate glow effect (pulsing)
-function animateGlow(symbol: PIXI.Text, glowFilter: GlowFilter): void {
+function animateGlow(symbol: PIXI.Text | PIXI.Graphics, glowFilter: GlowFilter): void {
   let time: number = 0;
   const pulseSpeed: number = 0.05; // Speed of the pulsing effect
   const minStrength: number = 2;
@@ -277,6 +277,9 @@ function resetGame(): void {
   const message: PIXI.DisplayObject | null = app.stage.getChildByName('message');
   if (message) app.stage.removeChild(message);
 
+  const messageBackground: PIXI.DisplayObject | null = app.stage.getChildByName('messageBackground');
+  if (messageBackground) app.stage.removeChild(messageBackground);
+
   if (turnIndicator) turnIndicator.textContent = "Player X's Turn";
 }
 
@@ -300,22 +303,60 @@ function checkDraw(): boolean {
 }
 
 function displayMessage(message: string): void {
+  // Create the message text
   const messageText: PIXI.Text = new PIXI.Text(message, {
     fontFamily: 'Orbitron',
     fontSize: CANVAS_SIZE * 0.1, // 10% of canvas size
-    fill: 0x00ffcc, // Neon cyan for message
+    fill: 0xfafafa, // Light gray for message
     fontWeight: '700',
     align: 'center',
   });
-  messageText.filters = [new GlowFilter({ color: 0x00ffcc, outerStrength: 3, distance: 15, quality: 0.1 })];
   messageText.name = 'message';
   messageText.anchor.set(0.5);
   messageText.x = CANVAS_SIZE / 2;
   messageText.y = CANVAS_SIZE / 2;
+
+  // Create a glow filter for the message text
+  const messageGlowFilter: GlowFilter = new GlowFilter({
+    color: 0xff9500, // Orange glow to match the border
+    outerStrength: 3,
+    distance: 15,
+    quality: 0.1,
+  });
+  messageText.filters = [messageGlowFilter];
+
+  // Create a black rectangle with an orange border as the background
+  const messageBackground: PIXI.Graphics = new PIXI.Graphics();
+  messageBackground.name = 'messageBackground';
+  messageBackground.lineStyle(4, 0xff9500, 1); // Orange border, 4px thick
+  messageBackground.beginFill(0x000000); // Black background
+  // Calculate the rectangle size based on the text dimensions with padding
+  const textWidth = messageText.width;
+  const textHeight = messageText.height;
+  const padding = 20; // Padding around the text
+  const rectWidth = textWidth + padding * 2;
+  const rectHeight = textHeight + padding * 2;
+  messageBackground.drawRect(-rectWidth / 2, -rectHeight / 2, rectWidth, rectHeight);
+  messageBackground.endFill();
+  messageBackground.x = CANVAS_SIZE / 2;
+  messageBackground.y = CANVAS_SIZE / 2;
+
+  // Create a glow filter for the rectangle's border
+  const backgroundGlowFilter: GlowFilter = new GlowFilter({
+    color: 0xff9500, // Orange glow to match the border
+    outerStrength: 3,
+    distance: 15,
+    quality: 0.1,
+  });
+  messageBackground.filters = [backgroundGlowFilter];
+
+  // Add the background first, then the text on top
+  app.stage.addChild(messageBackground);
   app.stage.addChild(messageText);
 
-  // Animate glow for the message
-  animateGlow(messageText, messageText.filters[0] as GlowFilter);
+  // Animate glow for both the message and the background
+  animateGlow(messageText, messageGlowFilter);
+  animateGlow(messageBackground, backgroundGlowFilter);
 }
 
 // Handle window resize to make the canvas responsive
