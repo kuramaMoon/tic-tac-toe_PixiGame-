@@ -10,25 +10,20 @@ type SymbolData = { text: PIXI.Text; row: number; col: number };
 
 // Determine canvas size based on screen dimensions
 const maxCanvasSize = 600; // Maximum size for larger screens
-const minCanvasSize = 250; // Minimum size for smaller screens (smartphones)
-const padding = 10; // Padding to ensure the canvas fits well on screen
+const minCanvasSize = 250; // Reduced for smaller screens (smartphones)
+const padding = 50; // Reduced padding to fit better on small screens
 
 const calculateCanvasSize = (): number => {
   const windowWidth = window.innerWidth - padding;
   const windowHeight = window.innerHeight - padding;
-  console.log(`windowWidth: ${windowWidth}`);
   // Ensure the canvas size is constrained by the viewport width
   const maxSizeByWidth = Math.min(windowWidth, windowHeight); // Use the smaller dimension
   const size = Math.max(minCanvasSize, Math.min(maxCanvasSize, maxSizeByWidth));
-  console.log(`size: ${size}`);
-
-  console.log(`Calculated CANVAS_SIZE: ${size}, windowWidth: ${windowWidth}, windowHeight: ${windowHeight}`);
+  console.log(`Main Canvas CANVAS_SIZE: ${size}, windowWidth: ${windowWidth}, windowHeight: ${windowHeight}`);
   return size;
 };
 
 let CANVAS_SIZE = calculateCanvasSize();
-console.log(`CANVAS_SIZE: ${CANVAS_SIZE}`);
-
 
 // Initialize PixiJS application with dynamic size
 const app: PIXI.Application = new PIXI.Application({
@@ -41,8 +36,13 @@ const app: PIXI.Application = new PIXI.Application({
 // Get the snakeContainer element and append the canvas to it
 const snakeContainer: HTMLDivElement | null = document.getElementById('snakeContainer') as HTMLDivElement;
 if (snakeContainer) {
-  snakeContainer.innerHTML = ''; // Clear any existing canvases
-  snakeContainer.appendChild(app.view as HTMLCanvasElement);
+  // Instead of clearing all content, append the canvas without affecting #snakeOverlay
+  const existingMainCanvas = snakeContainer.querySelector('canvas');
+  if (existingMainCanvas) {
+    existingMainCanvas.remove(); // Remove only the previous main canvas if it exists
+  }
+  snakeContainer.insertBefore(app.view as HTMLCanvasElement, snakeContainer.firstChild); // Insert before #snakeOverlay
+  console.log("Main canvas appended to snakeContainer:", app.view);
 } else {
   console.error("snakeContainer element not found in the DOM.");
 }

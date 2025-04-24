@@ -57,7 +57,7 @@ canvas {
 
 #snakeContainer {
   position: relative;
-  padding: 5px; /* Reduced padding to fit better */
+  padding: 15px; /* Reduced padding to fit better */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -68,7 +68,7 @@ canvas {
   position: absolute;
   top: 0;
   left: 0;
-  padding: 5px; /* Match snakeContainer padding */
+  padding: 07px; /* Match snakeContainer padding */
   width: 100%; /* Match the parent container */
   height: 100%; /* Match the parent container */
   pointer-events: none; /* So it doesn't block clicks */
@@ -76,8 +76,13 @@ canvas {
   max-height: 100vw; /* Maintain square aspect ratio */
 }
 
+/* Debug: Add a border to the snakeOverlay canvas to confirm it’s rendering */
+#snakeOverlay canvas {
+  border: 2px dashed #ff00ff; /* Debug border to confirm rendering */
+}
+
 /* Responsive adjustments for smaller screens */
-@media (max-width: 400px) {
+@media (max-width: 200px) {
   #turnIndicator {
     font-size: 24px; /* Reduced font size */
     margin-bottom: 5px; /* Further reduced margin */
@@ -94,8 +99,8 @@ canvas {
   }
 
   canvas {
-    max-width: 90vw; /* Leave room for padding */
+    max-width: 90vw; 
     max-height: 90vw;
-    border: 1px solid #00ffcc; /* Even smaller border */
+    border: 1px solid #00ffcc; 
   }
 }
