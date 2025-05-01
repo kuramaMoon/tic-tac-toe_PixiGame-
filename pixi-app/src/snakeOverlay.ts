@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error("snakeOverlay element not found in the DOM.");
     return;
   }
-  console.log("snakeOverlay element found:", snakeOverlay);
+ // console.log("snakeOverlay element found:", snakeOverlay);
 
   // Determine canvas size based on screen dimensions
   const maxCanvasSize = 620; // Maximum size for larger screens
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure the canvas size is constrained by the viewport width
     const maxSizeByWidth = Math.min(windowWidth, windowHeight); // Use the smaller dimension
     const size = Math.max(minCanvasSize, Math.min(maxCanvasSize, maxSizeByWidth));
-    console.log(`SnakeOverlay CANVAS_SIZE: ${size}, windowWidth: ${windowWidth}, windowHeight: ${windowHeight}`);
+   // console.log(`SnakeOverlay CANVAS_SIZE: ${size}, windowWidth: ${windowWidth}, windowHeight: ${windowHeight}`);
     return size;
   };
 
@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Append the canvas to the snakeOverlay element
   snakeOverlay.innerHTML = ''; // Clear any existing canvases
   snakeOverlay.appendChild(snakeApp.view as HTMLCanvasElement);
-  console.log("Snake canvas appended to snakeOverlay:", snakeApp.view);
 
   // Snake setup
   const snakeSegments: PIXI.Graphics[] = [];
@@ -55,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     segment.endFill();
     snakeApp.stage.addChild(segment);
     snakeSegments.push(segment);
-    console.log(`Snake segment ${i} created at size ${segmentSize}x${segmentSize}`);
   }
 
   let snakeProgress = 0;
@@ -71,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
       snakeSegments[i].y = pos.y;
       // Log position of the first segment for debugging
       if (i === 0) {
-        console.log(`Snake segment 0 position: x=${pos.x}, y=${pos.y}`);
+       // console.log(`Snake segment 0 position: x=${pos.x}, y=${pos.y}`);
       }
     }
   });

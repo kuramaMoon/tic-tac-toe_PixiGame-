@@ -15,6 +15,60 @@ body {
   overflow: hidden; /* Prevent scrolling */
 }
 
+#lobby {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+#game {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 600px; /* Match maxCanvasSize in main.ts */
+  margin: 0 auto;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 18px;
+  font-family: 'Orbitron', sans-serif;
+  color: #00ffcc; /* Neon cyan to match turnIndicator */
+  background-color: #1a1a1a;
+  border: 2px solid #00ffcc;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-shadow: 0 0 5px #00ffcc;
+}
+
+button:hover {
+  background-color: #00ffcc;
+  color: #0a0a0a;
+  box-shadow: 0 0 10px #00ffcc;
+}
+
+#gameLink {
+  display: none;
+  margin-top: 10px;
+  color: #ff00ff; /* Neon magenta to match resetButton */
+  font-size: 16px;
+  word-break: break-all;
+  text-shadow: 0 0 5px #ff00ff;
+}
+
+#waitingMessage {
+  display: none;
+  margin-top: 10px;
+  color: #fafafa;
+  font-size: 16px;
+  text-shadow: 0 0 5px #fafafa;
+}
+
 #turnIndicator {
   font-family: 'Orbitron', sans-serif;
   font-size: 40px;
@@ -29,8 +83,10 @@ canvas {
   border: 2px solid #00ffcc; /* Reduced border size */
   border-radius: 8px;
   box-shadow: 0 0 20px rgba(64, 0, 255, 0.752); /* Glow shadow */
-  max-width: 100vw; /* Ensure canvas fits within viewport */
-  max-height: 100vw; /* Maintain square aspect ratio */
+  max-width: 100%; /* Fit within parent container */
+  max-height: 100%; /* Maintain square aspect ratio */
+  width: 100%; /* Ensure it takes the full width of the parent */
+  height: auto; /* Maintain aspect ratio */
 }
 
 #resetButton {
@@ -61,7 +117,9 @@ canvas {
   display: flex;
   justify-content: center;
   align-items: center;
-  max-width: 100vw; /* Ensure it fits within viewport */
+  width: 100%; /* Take full width of parent */
+  max-width: 600px; /* Match maxCanvasSize in main.ts */
+  aspect-ratio: 1 / 1; /* Ensure square aspect ratio */
 }
 
 #snakeOverlay {
@@ -72,8 +130,8 @@ canvas {
   width: 100%; /* Match the parent container */
   height: 100%; /* Match the parent container */
   pointer-events: none; /* So it doesn't block clicks */
-  max-width: 100vw; /* Ensure it fits within viewport */
-  max-height: 100vw; /* Maintain square aspect ratio */
+  max-width: 100%; /* Ensure it fits within parent */
+  max-height: 100%; /* Maintain square aspect ratio */
 }
 
 /* Debug: Add a border to the snakeOverlay canvas to confirm it’s rendering */
@@ -81,17 +139,99 @@ canvas {
   border: 2px dashed #ff00ff; /* Debug border to confirm rendering */
 }
 
+.temporary-message {
+  margin-top: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  color: #fafafa;
+  background: linear-gradient(45deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
+  border: 2px solid #ff00ff; /* Neon cyan to match turnIndicator and canvas */
+  border-radius: 5px;
+  text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
+  box-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff;
+  animation: fadeInOut 5s ease-in-out, glowPulse 1s ease-in-out infinite alternate;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Pulsating glow effect for text and border */
+@keyframes glowPulse {
+  0% {
+    text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
+    box-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff;
+  }
+  100% {
+    text-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff;
+    box-shadow: 0 0 20px #ff00ff, 0 0 30px #ff00ff;
+  }
+}
+
+/* Fade in and out animation with a slight scale pulse */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  10% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  90% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Neon scan effect for the border */
+.temporary-message::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(90deg, transparent, #ff00ff4c, transparent);
+  animation: scanBorder 2s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scanBorder {
+  0% {
+    background-position: 0%;
+  }
+  100% {
+    background-position: 200%;
+  }
+}
+
 /* Responsive adjustments for smaller screens */
 @media (max-width: 200px) {
+  #lobby {
+    gap: 10px; /* Reduce gap for smaller screens */
+  }
+
   #turnIndicator {
     font-size: 24px; /* Reduced font size */
     margin-bottom: 5px; /* Further reduced margin */
   }
 
-  #resetButton {
+  button, #resetButton {
     margin-top: 5px; /* Further reduced margin */
     padding: 8px 16px;
     font-size: 14px;
+  }
+
+  #gameLink, #waitingMessage, .temporary-message {
+    font-size: 14px; /* Reduce font size for smaller screens */
+    margin-top: 5px;
+    padding: 8px 16px;
   }
 
   #snakeContainer, #snakeOverlay {
@@ -99,8 +239,8 @@ canvas {
   }
 
   canvas {
-    max-width: 90vw; 
-    max-height: 90vw;
-    border: 1px solid #00ffcc; 
+    max-width: 90%;
+    max-height: 90%;
+    border: 1px solid #00ffcc;
   }
 }
