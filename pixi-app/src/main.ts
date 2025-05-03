@@ -8,6 +8,7 @@ type Player = 'X' | 'O';
 type Cell = Player | '';
 type Board = Cell[][];
 type SymbolData = { text: PIXI.Text; row: number; col: number };
+type GameMode = 'multiplayer' | 'local';
 
 // Define the structure of PubNub message payloads
 interface MessagePayload {
@@ -22,7 +23,7 @@ interface MessagePayload {
   startingPlayer?: Player;
 }
 
-// PubNub setup
+// PubNub setup (only used in multiplayer mode)
 const pubnub = new PubNub({
   publishKey: 'pub-c-7a6bde4e-96b8-4e30-b3dd-371ac3033756',
   subscribeKey: 'sub-c-95aa0fd1-e295-4812-9b06-73c5b7a8755e',
@@ -30,6 +31,7 @@ const pubnub = new PubNub({
 });
 
 // Game session variables
+let gameMode: GameMode | null = null;
 let roomId: string | null = null;
 let isCreator: boolean = false;
 let myPlayer: Player | null = null;
@@ -37,13 +39,14 @@ let opponentJoined: boolean = false;
 let lastMove: { row: number; col: number; player: Player } | null = null;
 let lastResetInitiator: string | null = null;
 let lastGameOverId: string | null = null;
-let creatorStartsNext: boolean = true; // Changed to true since first game starts with 'X'
+let creatorStartsNext: boolean = true; // First game starts with 'X'
 let copyLinkTimeout: NodeJS.Timeout | null = null; // To manage the timer for copy link
 
 // DOM elements for lobby
 const lobbyDiv = document.getElementById('lobby') as HTMLDivElement;
 const gameDiv = document.getElementById('game') as HTMLDivElement;
-const createGameButton = document.getElementById('createGameButton') as HTMLButtonElement;
+const multiplayerButton = document.getElementById('multiplayerButton') as HTMLButtonElement;
+const localButton = document.getElementById('localButton') as HTMLButtonElement;
 const gameLinkDiv = document.getElementById('gameLink') as HTMLDivElement;
 const linkText = document.getElementById('linkText') as HTMLSpanElement;
 const copyLinkButton = document.getElementById('copyLinkButton') as HTMLButtonElement;
@@ -194,12 +197,13 @@ const showGameAndRender = () => {
   drawGrid();
   updateHitArea();
   app.start(); // Start the PixiJS ticker for animations
-  console.log("Game rendered for player:", isCreator ? "Creator" : "Joiner");
-  console.log(`Initial turn: currentPlayer=${currentPlayer}, myPlayer=${myPlayer}, opponentJoined=${opponentJoined}`);
+  console.log("Game rendered for player:", gameMode === 'multiplayer' ? (isCreator ? "Creator" : "Joiner") : "Local Mode");
+  console.log(`Initial turn: currentPlayer=${currentPlayer}, myPlayer=${myPlayer}, opponentJoined=${opponentJoined}, gameMode=${gameMode}`);
 };
 
-// Lobby logic
-createGameButton.addEventListener('click', () => {
+// Main Menu Logic
+multiplayerButton.addEventListener('click', () => {
+  gameMode = 'multiplayer';
   roomId = Math.random().toString(36).substring(2, 9);
   isCreator = true;
   myPlayer = 'X'; // Creator is always X
@@ -210,9 +214,21 @@ createGameButton.addEventListener('click', () => {
   linkText.textContent = gameUrl;
   gameLinkDiv.style.display = 'block';
   waitingMessage.style.display = 'block';
-  createGameButton.style.display = 'none';
+  multiplayerButton.style.display = 'none';
+  localButton.style.display = 'none';
 
-  console.log("Creator: Waiting for opponent to join");
+  console.log("Multiplayer Mode: Waiting for opponent to join");
+});
+
+localButton.addEventListener('click', () => {
+  gameMode = 'local';
+  myPlayer = null; // In local mode, myPlayer is not fixed; both players use the same device
+  opponentJoined = true; // No opponent to wait for in local mode
+  multiplayerButton.style.display = 'none';
+  localButton.style.display = 'none';
+
+  showGameAndRender();
+  console.log("Local Mode: Game started on single device");
 });
 
 copyLinkButton.addEventListener('click', () => {
@@ -235,10 +251,11 @@ copyLinkButton.addEventListener('click', () => {
   });
 });
 
-// Check if joining via URL
+// Check if joining via URL (Multiplayer Mode only)
 const urlParams = new URLSearchParams(window.location.search);
 const joinRoomId = urlParams.get('room');
 if (joinRoomId) {
+  gameMode = 'multiplayer';
   roomId = joinRoomId;
   isCreator = false;
   myPlayer = 'O'; // Joiner is always O
@@ -255,9 +272,11 @@ if (joinRoomId) {
   showGameAndRender();
 }
 
-// PubNub message listener
+// PubNub message listener (Multiplayer Mode only)
 pubnub.addListener({
   message: (msg) => {
+    if (gameMode !== 'multiplayer') return; // Ignore PubNub messages in local mode
+
     const payload = msg.message as unknown;
 
     if (typeof payload !== 'object' || payload === null || !('type' in payload)) {
@@ -349,6 +368,7 @@ pubnub.addListener({
     }
   },
   status: (statusEvent) => {
+    if (gameMode !== 'multiplayer') return; // Ignore PubNub status in local mode
     if (statusEvent.error) {
       console.error("PubNub status error:", statusEvent);
     } else {
@@ -359,8 +379,10 @@ pubnub.addListener({
 
 // Handle clicks using PixiJS's event system
 hitArea.on('pointertap', (event): void => {
-  console.log(`Click event triggered: gameOver=${gameOver}, myPlayer=${myPlayer}, currentPlayer=${currentPlayer}, opponentJoined=${opponentJoined}`);
-  if (gameOver || !myPlayer || currentPlayer !== myPlayer || !opponentJoined) return;
+  console.log(`Click event triggered: gameOver=${gameOver}, myPlayer=${myPlayer}, currentPlayer=${currentPlayer}, opponentJoined=${opponentJoined}, gameMode=${gameMode}`);
+  
+  // In local mode, no myPlayer restriction; in multiplayer, ensure it's the player's turn
+  if (gameOver || (gameMode === 'multiplayer' && (!myPlayer || currentPlayer !== myPlayer || !opponentJoined))) return;
 
   const localPos: PIXI.Point = event.data.getLocalPosition(app.stage);
   const x: number = localPos.x;
@@ -371,17 +393,23 @@ hitArea.on('pointertap', (event): void => {
   console.log(`Click at x=${x}, y=${y}, row=${row}, col=${col}, cellSize=${cellSize}`);
 
   if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && board[row][col] === '') {
-    const nextPlayer: Player = myPlayer === 'X' ? 'O' : 'X';
-    lastMove = { row, col, player: myPlayer };
-    pubnub.publish({
-      channel: roomId!,
-      message: { type: 'move', row, col, player: myPlayer, nextPlayer },
-    });
+    const player = currentPlayer; // Current player makes the move
+    const nextPlayer: Player = currentPlayer === 'X' ? 'O' : 'X';
+    
+    if (gameMode === 'multiplayer') {
+      lastMove = { row, col, player };
+      pubnub.publish({
+        channel: roomId!,
+        message: { type: 'move', row, col, player, nextPlayer },
+      });
+    } else {
+      lastMove = { row, col, player }; // Still track last move to avoid duplicates
+    }
 
-    handleMove(row, col, myPlayer);
+    handleMove(row, col, player);
     currentPlayer = nextPlayer;
     if (turnIndicator) turnIndicator.textContent = `Player ${currentPlayer}'s Turn`;
-    console.log(`After local move: currentPlayer=${currentPlayer}, myPlayer=${myPlayer}, opponentJoined=${opponentJoined}`);
+    console.log(`After local move: currentPlayer=${currentPlayer}, myPlayer=${myPlayer}, opponentJoined=${opponentJoined}, gameMode=${gameMode}`);
   }
 });
 
@@ -430,21 +458,25 @@ function handleMove(row: number, col: number, player: Player): void {
   }
 
   if (checkWin(player)) {
-    const gameOverId = Math.random().toString(36).substring(2, 9);
-    pubnub.publish({
-      channel: roomId!,
-      message: { type: 'gameOver', messageText: `${player} Wins!`, gameOverId },
-    });
+    const gameOverId = gameMode === 'multiplayer' ? Math.random().toString(36).substring(2, 9) : null;
+    if (gameMode === 'multiplayer') {
+      pubnub.publish({
+        channel: roomId!,
+        message: { type: 'gameOver', messageText: `${player} Wins!`, gameOverId },
+      });
+    }
     lastGameOverId = gameOverId;
     gameOver = true;
     displayMessage(`${player} Wins!`);
     if (turnIndicator) turnIndicator.textContent = `${player} Wins!`;
   } else if (checkDraw()) {
-    const gameOverId = Math.random().toString(36).substring(2, 9);
-    pubnub.publish({
-      channel: roomId!,
-      message: { type: 'gameOver', messageText: "It's a Draw!", gameOverId },
-    });
+    const gameOverId = gameMode === 'multiplayer' ? Math.random().toString(36).substring(2, 9) : null;
+    if (gameMode === 'multiplayer') {
+      pubnub.publish({
+        channel: roomId!,
+        message: { type: 'gameOver', messageText: "It's a Draw!", gameOverId },
+      });
+    }
     lastGameOverId = gameOverId;
     gameOver = true;
     displayMessage("It's a Draw!");
@@ -456,17 +488,23 @@ function handleMove(row: number, col: number, player: Player): void {
 const resetButton: HTMLButtonElement | null = document.getElementById('resetButton') as HTMLButtonElement;
 if (resetButton) {
   resetButton.addEventListener('click', () => {
-    lastResetInitiator = pubnub.getUUID();
+    lastResetInitiator = gameMode === 'multiplayer' ? pubnub.getUUID() : null;
     // Toggle who starts next
     creatorStartsNext = !creatorStartsNext;
-    const startingPlayer: Player = creatorStartsNext ? 'X' : 'O';
-    pubnub.publish({
-      channel: roomId!,
-      message: { type: 'reset', resetInitiator: lastResetInitiator, startingPlayer },
-    });
+    if (gameMode === 'multiplayer') {
+      const startingPlayer: Player = creatorStartsNext ? 'X' : 'O';
+      pubnub.publish({
+        channel: roomId!,
+        message: { type: 'reset', resetInitiator: lastResetInitiator, startingPlayer },
+      });
+    }
     resetGameLocally();
-    if (isCreator) {
+    if (gameMode === 'multiplayer' && isCreator) {
       opponentJoined = false;
+      lobbyDiv.style.display = 'block';
+      gameDiv.style.display = 'none';
+      gameLinkDiv.style.display = 'block';
+      waitingMessage.style.display = 'block';
       console.log("Creator: Waiting for Joiner to rejoin after reset, opponentJoined=", opponentJoined);
     }
   });
@@ -514,7 +552,7 @@ function resetGameLocally(): void {
 
   app.renderer.render(app.stage);
 
-  console.log(`After reset: currentPlayer=${currentPlayer}, myPlayer=${myPlayer}, opponentJoined=${opponentJoined}, creatorStartsNext=${creatorStartsNext}`);
+  console.log(`After reset: currentPlayer=${currentPlayer}, myPlayer=${myPlayer}, opponentJoined=${opponentJoined}, creatorStartsNext=${creatorStartsNext}, gameMode=${gameMode}`);
 }
 
 function animatePlacement(symbol: PIXI.Text): void {

@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tic-Tac-Toe with PixiJS</title>
+  <title>NeonGrid Clash</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap">
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
   <!-- Lobby UI -->
   <div id="lobby" style="display: flex; flex-direction: column; align-items: center;">
-    <h1 style="color: #00ffcc; font-family: 'Orbitron', sans-serif;">Tic-Tac-Toe Multiplayer</h1>
-    <button id="createGameButton" style="margin: 10px; padding: 10px 20px; font-size: 18px; font-family: 'Orbitron', sans-serif; background-color: #ff00ff; color: #ffffff; border: 2px solid #ff00ff; border-radius: 5px; cursor: pointer;">
-      Create Game
+    <h1 style="color: #00ffcc; font-family: 'Orbitron', sans-serif;">NeonGrid Clash</h1>
+    <button id="multiplayerButton" style="margin: 10px; padding: 10px 20px; font-size: 18px; font-family: 'Orbitron', sans-serif; background-color: #ff00ff; color: #ffffff; border: 2px solid #ff00ff; border-radius: 5px; cursor: pointer;">
+      Multiplayer Mode
+    </button>
+    <button id="localButton" style="margin: 10px; padding: 10px 20px; font-size: 18px; font-family: 'Orbitron', sans-serif; background-color: #ff00ff; color: #ffffff; border: 2px solid #ff00ff; border-radius: 5px; cursor: pointer;">
+      Local Mode
     </button>
     <div id="gameLink" style="display: none; color: #00ffcc; font-family: 'Orbitron', sans-serif; margin: 10px;">
       Share this link: <span id="linkText"></span>
